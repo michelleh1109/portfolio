@@ -3,10 +3,14 @@ I am an undergraduate student at Cornell University studying Information Science
 
 My portfolio belows includes independent coding projects, environmental economics research, and additional data science projects. Below is a brief overview of a few key projects I have uploaded to my GitHub including when I created this, their functions, the skills I apply, how to run/view them, etc.
 
-## [Environmental Economics Data Science Research] Negative Rebound: National Household Travel Survey 
+## Negative Rebound: National Household Travel Survey 
+[Environmental Economics Data Science Research] 
 
-## [Data Science Project] Amazon Reviews
+## Amazon Reviews
+[Data Science Project]
 
-## [Coding] Alien Invaders Shooting Game
+## Alien Invaders Shooting Game
+[Coding] 
 
-## [Coding] K-Means Clustering Algorithm
+## K-Means Clustering Algorithm
+[Coding] 
