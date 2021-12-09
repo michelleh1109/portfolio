@@ -7,13 +7,13 @@ My portfolio belows includes independent coding projects, environmental economic
 
 **Overview**
 
-**Skills Applied*(
+**Skills Applied**
 
 ## Negative Rebound: National Household Travel Survey Environmental Economics Data Science Research
 
 **Overview**
 
-Over summer 2021, I worked with Professor Mark Jacobsen at UC San Diego on environmental economics research. I independent led and developed analysis on the National Household Travel Surveys (NHTS), which consisted of household demographics, individual demographics, vehicle compositions, and trips taken by individuals/households, to develop empirical data to support the professor's theoretical analyses of the rebound effect. 
+Over summer 2021, I worked with Professor Mark Jacobsen at UC San Diego on environmental economics research. I independently led and developed analysis on the National Household Travel Surveys (NHTS), which consisted of household demographics, individual demographics, vehicle compositions, and trips taken by individuals/households, to develop empirical data to support the professor's theoretical analyses of the rebound effect. 
 
 The specific goal of this empirical data analyses is to prove that decreasing the number of vehicles per household will also decrease the overall vehicle miles traveled (VMT) by the household. I do this by constructing the control household, controlling for factors such as household size, working status, student status, income, geographic density, number of children etc. Then I use this control household to understand how their vehicle miles traveled (VMT) changes as their household car composition changes. I was able to successfully prove that VMT does decrease as household car size decreases, visualize different patterns in VMT based on car type combinations and car age, trip type patterns based on car types. 
 
@@ -21,7 +21,7 @@ A more detailed description of the research, methodology, and conclusions are pr
 
 **Skills Applied**
 
-I coded this in R (programming language) in R Studio. I applied data science skills such as data wrangling, building visualizations, working with large data sets, statistical tests.
+I coded this in R (programming language) in R Studio. I applied data science skills such as data wrangling, building visualizations, working with large data sets, and statistical tests.
 
 ## Python Alien Invaders Shooting Game
 
@@ -38,3 +38,5 @@ I coded this in R (programming language) in R Studio. I applied data science ski
 **Skills Applied**
 
 **How to Run**
+
+### Hello
