@@ -1,0 +1,814 @@
+---
+title: "Negative Rebound Effect: National Household Travel Survey (NHTS) Analysis"
+author: "Michelle Hui"
+date: "5/27/2021"
+output: html_document
+---
+### Overview of Project ###
+Over summer 2021, I performed environmental economics research with Professor Jacobsen from UC San Diego. I independent led and developed analysis on the National Household Travel Surveys (NHTS), which consisted of household demographics, individual demographics, vehicle compositions, and trips taken by individuals/households, to develop empirical data to support the professor's theoretical analyses of the rebound effect. His research worked to advise the US EPA on fuel emission standards by suggesting that tightening fuel economy standards would lead to an additional negative rebound, or additional decrease in vehicle mileage and emissions. 
+
+More about these surveys can be found here: https://nhts.ornl.gov/
+More about the rebound effect and its relevance can be found here: https://www.journals.uchicago.edu/doi/full/10.1093/reep/rez015
+
+The specific goal of this empirical data analyses is to prove that decreasing the number of vehicles per household will also decrease the overall vehicle miles traveled (VMT) by the household. I do this by constructing the control household, controlling for factors such as household size, working status, student status, income, geographic density, number of children etc. Then I use this control household to understand how their vehicle miles traveled (VMT) changes as their household car composition changes. 
+
+I was able to successfully prove that VMT does decrease as household car size decreases, visualize different patterns in VMT based on car type combinations and car age, trip type patterns based on car types. 
+
+The main data limitation and challenge I faced was dealing with a small sample size. As I narrowed down on the variables to identify a control household, the sample size became increasingly smaller. Thus there was a lot of uncertainty about the accuracy of my data and values.
+
+```{r setup, include = F}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+# set working directory
+knitr::opts_knit$set(root.dir = "/Users/pennyliao/Dropbox (Penn)/Data/NHTS") 
+
+library(tidyverse)
+library(lubridate)
+library(patchwork)
+library(gtsummary)
+library(wesanderson)
+library(DescTools)
+
+```
+
+Loading the National Household Travel Survey data sets. 
+```{r read, include = F}
+# personal trips
+trips_raw <- read_csv("Csv/trippub.csv")
+
+# vehicles
+veh_raw <- read_csv("Csv/vehpub.csv")
+
+# household
+hh_raw <- read_csv("Csv/hhpub.csv")
+
+#person
+per_raw <- read_csv("Csv/perpub.csv")
+
+```
+
+### Building the control household: 2 Person Suburban Household
+To create the control household, I identified the most relevant variables out of the 50-150 variables in each survey. More about the variables can be found in the "NHTS Codebook" in my GitHub.
+
+The standard household, which represents the largest part of the population, is a 2-person household with household income range 50k-149k, at a lifecycle stage of 2 adults and no children, living suburban regions, both work only 1 full time job, both are not in school, both people can drive, and the family owns between 1-4 cars. 
+
+```{r}
+#filter for 2 person households
+hh_2per <- hh_raw %>% filter(HHSIZE == 2)
+
+# only households in Lifecycle w/ 2 working adults and no kids
+hh_2per <- hh_2per %>% filter(LIF_CYC %in% "02")
+hh_2per <- hh_2per %>% filter(WRKCOUNT %in% "2")
+
+#keep only suburban population density (1000-3999)
+hh_2per <- hh_2per %>% filter(HTPPOPDN %in% c("1500", "3000")) 
+
+#income range of 50k-149.999k
+hh_2per <- hh_2per %>% filter(HHFAMINC %in% c("06", "07", "08", "09"))
+hhid_2per <- unique(hh_2per$HOUSEID)
+
+# both ppl. in household work only 1 full-time job
+per2 <- per_raw %>% filter(HOUSEID %in% hhid_2per)
+per2 <- per2 %>% filter(GT1JBLWK %in% "2") %>% filter(WKFTPT %in% "1")
+
+# both ppl do not attend school
+per2 <- per2 %>% filter(SCHTYP %in% c("-1", "03"))
+
+# both ppl. can drive
+per2 <- per2 %>% filter(DRIVER %in% "1")
+
+# own between 1-4 cars
+per2 <- per2 %>% filter(HHVEHCNT < 5) %>% filter(HHVEHCNT > 0)
+
+per2 <- per2 %>% group_by(HOUSEID) %>% mutate(NOBS = n()) 
+per2 <- per2 %>% filter(NOBS == 2)
+hhid_2per <- unique(per2$HOUSEID)
+```
+
+### Investigating the effect of motorcycles on VMT
+As motorcycles are not included in US EPA fuel economy standards, I will be removing them from the data set. I do this by first understanding motorcycle trip and mileage patterns in the graphs below. Then, I identify mileage cutoff points where I am able to do either one of two things:
+
+(1) If the household has driven less than 1500 miles on their motorcycle annually, I remove the motorcycle from further analyses while keeping the household in control group. This is because if the household is not using the motorcycle extensively, their mileage driven on this vehicle will not significantly alter their other travel patterns. 
+(2) If the household travels more than 1500 miles on their motorcycle annually, I completely remove the household from further analyses. As this household uses their motorcycle extensively, certain trips they have taken to work, errands, etc. would not be reflected in the data. It would skew the representation of trips, mileage, etc.
+
+```{r distribution of miles driven on motocycles}
+veh <- veh_raw %>% filter(HOUSEID %in% hhid_2per)
+
+mtrcycl <- veh %>% filter(VEHTYPE %in% "07")
+mtrcycl %>% count(HHVEHCNT)
+
+ggplot(data = mtrcycl) +
+  geom_density(mapping = aes(x = BESTMILE)) + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "Annual Mileage Driven on Motorcycle", subtitle = "2 Person Suburban Household", x = "Annual Mileage")
+```
+In the first chart above, is the count of households that own motorcycles. HHVEHCNT stands for "Household Vehicle Count," meaning the total number of vehicles owned by each household. For example, 3 households with a "Household Vehicle Count" of 2 own a motorcycle. 
+
+The second chart above is a density plot of annual mileage driven per motorcycle. We see not many miles are driven on motorcycles overall. The graph is right skew with most annual mileages concentrated below 3000. There are two inflection points, one at around 1500 and one around 3000. 
+
+```{r}
+# keeping only motorcycles that are driven less than 1500 miles a year
+mtrcycl_select <- mtrcycl %>% filter(BESTMILE <= 1500)
+mtrcycl_select %>% count(HHVEHCNT)
+veh <- veh %>% filter(!VEHTYPE %in% "07")
+veh <- rbind(veh, mtrcycl_select)
+```
+Above, I am keeping motorcycles that drive less than or equal to 1500 miles annual in the data set. The chart shows the number of remaining households with motorcycles that are still left in the data set.
+
+```{r}
+# removing households that drive >1500 miles on motorcycles
+mtrcycl_select <- mtrcycl %>% filter(BESTMILE > 1500)
+hhid <- unique(mtrcycl_select$HOUSEID)
+veh <- veh %>% filter(!HOUSEID %in% hhid)
+hhid_2per <- unique(veh$HOUSEID)
+```
+I then removed all motorcycles and households that drive more than 1500 miles annually from all data sets (person, household, trips and vehicles).
+
+``` {r removing motorcycle from data}
+# houseid of all remaining hh with motorcycles
+mtrcycl_select <- mtrcycl %>% filter(BESTMILE <= 1500)
+hhid <- unique(mtrcycl_select$HOUSEID)
+
+# using only 2 person households
+per2 <- per2 %>% filter (HOUSEID %in% hhid_2per)
+trips <- trips_raw %>% filter (HOUSEID %in% hhid_2per)
+veh <- veh_raw %>% filter (HOUSEID %in% hhid_2per)
+
+# removing motorcycles from HHVEHCNT in all data
+per2 <- per2 %>%
+  mutate(HHVEHCNT = ifelse(HOUSEID %in% hhid, (HHVEHCNT-1), HHVEHCNT))
+veh <- veh %>% 
+    mutate(HHVEHCNT = ifelse(HOUSEID %in% hhid, (HHVEHCNT-1), HHVEHCNT))
+trips <- trips %>% 
+    mutate(HHVEHCNT = ifelse(HOUSEID %in% hhid, (HHVEHCNT-1), HHVEHCNT))
+
+# removing motorcycles in vehicle and trip data
+veh <- veh %>% filter(!VEHTYPE %in% "07")
+trips <- trips %>% filter(!VEHTYPE %in% "07")
+```
+Finally, with the households that drive less than 1500 miles on their motorcycles, I removed motorcycles from vehicle and trip data. I also subtracted the "Household Vehicle Counts" of motorcycle owning households by the number of motorcycles. 
+
+### Effect of Work Miles on Total Annual Miles Driven 
+Next, I am continuing to tighten the accuracy of VMT calculations by removing work miles (miles driven to and from work) from an individuals annual mileage driven. This way, we are left with only the variable (non-work) miles that are optional trips such as errands, recreational, etc. These are the miles we are interested in as they are variable based on "Household Vehicle Count."
+
+```{r cleaning data }
+# filter out unknown annual mileage
+per2 <- per2 %>% filter(!YEARMILE %in% c("-88", "-77", "-1"))
+
+# filter out unknown distance to work
+per2 <- per2 %>% filter(!DISTTOWK17 %in% "-9")
+
+# filter out unknown mode to work 
+per2 <- per2 %>% filter(!WRKTRANS %in% c("-9", "-8", "-7", "-1"))
+```
+Above, I am cleaning the data by removing unknown annual mileages, distance to work, and mode of transportation to work.
+
+```{r removing work distance}
+# calculating annual miles driven to/from work (distanceToWork*2 To/From*5 days/week*46.8 weeks); set all people who do not drive to work as WORKMILE = 0
+per2 <- per2 %>%
+  mutate(WORKMILE = ifelse(!WRKTRANS %in% c("3","4","5","6","18"), 0.0, DISTTOWK17*2.0*5*46.8)) # over counting trips because of work from home 
+
+# calculating non-work- miles 
+per2 <- per2 %>% mutate(VARMILE = YEARMILE - WORKMILE)
+ 
+# windsorize outliers and values less than 0
+per2 <- per2 %>% 
+  mutate(VARMILE1 = Winsorize(VARMILE, minval = 0, maxval = 100000))
+ 
+# fraction of observations that are negative
+print("Fraction of Negative Variable Mileage")
+length(which(per2$VARMILE < 0)) / nrow(per2)
+```
+Here, I calculate the annual "WORKMILES" driven by each individual by taking those who drive to work and multiplying their "Distance to Work" by 2 for back and forth trips, by 5 for five working days of the week, and 46.8 for the US average working weeks in a year. I then subtract the "WORKMILES" from their annual "YEARMILE" to calculate "VARMILE," which is the variable non-work miles.
+
+However, this method is likely over estimating annual "WORKMILES" as many people work from home and do not work five days a week. However, this survey does not count how many days a week people work and how many days someone is working in office. Therefore, some "VARMILE" calculations come out to be negative, which is obviously impossible. For these results, we windsorized the negative values to zero. We see in the chart the fraction of "VARMILE" observations that are negative.
+
+```{r boxplot of variable annual miles}
+# boxplot with windsorized VARMILE values
+ggplot(data = per2, mapping = aes(x = HHVEHCNT, group = HHVEHCNT, y = VARMILE1)) + 
+  geom_boxplot() + 
+  labs(title = "Variable Annual Mileage Per Driver", subtitle = "Scaled", x = "Household Vehicle Count", y = "Annual Mileage")
+```
+Above is a boxplot of the windsorized "VARMILES." As expected, most of the data is right skewed, meaning most people do not drive a lot of miles for recreational purposes. It is suprising however that some indivudals drive an insane amount of miles every year, with some driving over 100,000 miles.
+
+```{r mean and error bar of variable miles}
+# windsorized mean and group standard deviation
+wind_means <- per2 %>% group_by(HHVEHCNT) %>% summarize(
+  mn = mean(VARMILE1),
+  stddev = sd(VARMILE1),
+  smpsz = n(),
+  stderr = sd(VARMILE1)/sqrt(smpsz)
+  )
+
+ggplot(data = wind_means, aes(x=HHVEHCNT, y= mn)) +
+  geom_point() + 
+  
+  geom_errorbar(aes(ymin= mn - stderr, ymax= mn + stderr)) +
+   labs(title = "Mean Annual Variable (Non-Work) Miles Per Driver", subtitle = "Standard 2 Person Suburban Household", x = "Household Vehicle Count", y = "Annual Mileage")
+```
+Above are the means and error bars of windsorized "VARMILES." This graph is especially promising as we can see there is a direct relationship between variable mileages of individuals who own more cars. This supports our initial claims that VMT decreases a "Household Vehicle Size" decreased.
+
+As discussed previously, one of our data limitations is a small sample size for certain control groups. We can see that the error bars for households with a "Household Vehicle Size" of 1 and 4 is significantly larger because there are not a lot of 2 person households that own only 1 car or own 4 cars. In contrast, there are a lot of 2 person households that own 2 cars, which makes a lot of sense in terms of real-life data.
+
+``` {r mean and error bar of work miles}
+# mean and group standard deviation
+means <- per2 %>% group_by(HHVEHCNT) %>% summarize(
+  mn = mean(WORKMILE),
+  stddev = sd(WORKMILE),
+  smpsz = n(),
+  stderr = sd(WORKMILE)/sqrt(smpsz)
+  )
+
+ggplot(data = means, aes(x=HHVEHCNT, y= mn)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin= mn - stderr, ymax= mn + stderr)) +
+   labs(title = "Mean Annual Work Miles Per Driver", subtitle = "Standard 2 Person Suburban Household", x = "Household Vehicle Count", y = "Annual Mileage")
+```
+To further support our "VARMILES" calculations, we can see in our "WORKMILES" mean and and error bar graph that annual work milage is fairly consistent in 2-4 car households while 1 car households do not drive a lot for work. This makes sense as one person will have to take public transportation, walk, or bike to work in a 1 car household. 
+
+```{r assigning cars by most to least driven}
+# filter out unknown bestMile responses
+veh <- veh %>% filter(!BESTMILE %in% "-9")
+
+# sort most driven car per HOUSEID 
+veh <- veh %>% arrange(HOUSEID, -BESTMILE) 
+
+# assigning ranks of most driven to least driven vehicles
+veh <- veh %>%
+  group_by(HOUSEID) %>% mutate(RANK = row_number())
+
+# calculating mean for each group (sorted by HHVEHCNT then RANK)
+veh <- veh %>% group_by(HHVEHCNT, RANK) %>% mutate(me = mean(BESTMILE))
+```
+I assigned each car in a household their respective "RANK" based from being the most driven (1) to least driven (4). 
+
+```{r graph of annual mileage per vehicle by most to least driven}
+ggplot(data = veh) +
+  geom_bar(mapping = aes(x = RANK, group = HHVEHCNT, fill = as.factor(HHVEHCNT), y = me), stat = "identity", position="dodge") +
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "Annual Mileage Per Vehicle", group = "Household Vehicle Count", x = "Vehicles Being Driven (Most to Least)", y = "Mileage", fill = "Household Vehicle Count")
+```
+This is a bar graph of miles being driven on most to least driven vehicles. What is suprising is that the most driven vehicles in 4 car households still have more mileage than the most driven vehicles in 1-3 car households, the most driven car in 3 car households have miles than 2 car households, etc. This means that 4 car households are driving more miles than 1-3 car households overall, 3 car households are driving more overall miles than 1-2 car households, etc. 
+
+### Investigating Trip Type Patterns 
+Moving away from data cleaning and understanding annual mileages, I will be looking at patterns in trip types to understand what types of trips are being sacrificed when a household has less cars. For example, a 4 car household might have a truck they take specifically for long camping trips. Thus a 2 or 3 car household might not be taking these camping trips and reducing their annual mileage. 
+
+I will also see if trip patterns between 1-4 car households vary by running a few statistical analyses on the trip distributions.
+
+``` {r trips being made by households on vehicles}
+# adding car rank with trip data
+trips <- trips %>% left_join(veh, by = c("HOUSEID", "VEHID"))
+trips <- trips %>% filter(!is.na(RANK))
+
+# narrow down into HHVEHCNT 
+trips_1car <- trips %>% filter(HHVEHCNT.x == 1)
+trips_2car <- trips %>% filter(HHVEHCNT.x == 2)
+trips_3car <- trips %>% filter(HHVEHCNT.x == 3)
+trips_4car <- trips %>% filter(HHVEHCNT.x == 4)
+```
+I am merging the person data set with the trips data set. I am also performing the preliminary data cleaning on the trips data.
+
+```{r}
+# WHYTRP1S trip types graph grouped by household vehicle count
+ggplot(data = trips_2car) +
+  geom_bar(mapping = aes(x = WHYTRP1S, group = RANK, fill = as.factor(RANK)), position = "dodge") + 
+    theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "2 Car Household Trip Types", subtitle = "Summary", x = "Trip Purpose", fill = "Vehicle Used(Most to Least)")
+
+ggplot(data = trips_3car) +
+  geom_bar(mapping = aes(x = WHYTRP1S, group = RANK, fill = as.factor(RANK)), position = "dodge") + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "3 Car Household Trip Types", subtitle = "Summary", x = "Trip Purpose", fill = "Vehicle Used(Most to Least)" )
+
+ggplot(data = trips_4car) +
+  geom_bar(mapping = aes(x = WHYTRP1S, group = RANK, fill = as.factor(RANK)), position = 'dodge') + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "4 Car Household Trip Types", subtitle = "Summary", x = "Trip Purpose", fill = "Vehicle Used(Most to Least)" )
+```
+Above are bar charts of trip types taken by households with 2-4 vehicles. The "WHYTRP1S" is the Summary "Trip Purpose Summary," denoting the overarching motivation for each trip. 
+
+Legend:
+01 Home
+10 Work
+20 School/Day care/Religious Activities
+30 Medical/Dental
+40 Shopping/Errands
+50 Social/Recreational
+70 Transporting Someone
+80 Meals 
+97 Something else
+More about this variable can be found in the codebook.
+
+Compared to the 2-3 car households, 4 car households use their 4th car significantly more for Shopping/Errands(40), Social/Recreational(50), Transporting Someone(70), which are all recreational and variable activities. Again, this suggests that if we were to remove the 4th car from a household that they might sacrifice these additional recreational trips and reduce their overall VMT.
+
+```{r}
+# WHYTO trip type graphs grouped by household vehicle count
+ggplot(data = trips_2car) +
+  geom_bar(mapping = aes(x = WHYTO, y = stat(prop), group = RANK, fill = as.factor(RANK)), position = "dodge") + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "2 Car Household Trip Types", subtitle = "Suburban 2 Person Household", x = "Trip Purpose", fill = "Vehicle Used(Most to Least)" )
+
+ggplot(data = trips_3car) +
+  geom_bar(mapping = aes(x = WHYTO, y = stat(prop), group = RANK, fill = as.factor(RANK)), position = "dodge") + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "3 Car Household Trip Types", subtitle = "Suburban 2 Person Household", x = "Trip Purpose", fill = "Vehicle Used(Most to Least)" )
+
+ggplot(data = trips_4car) +
+  geom_bar(mapping = aes(x = WHYTO, y = stat(prop), group = RANK, fill = as.factor(RANK)), position = 'dodge') + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "4 Car Household Trip Types", subtitle = "Suburban 2 Person Household", x = "Trip Purpose", fill = "Vehicle Used(Most to Least)" )
+
+# simplifying to larger trip categories -> see if possible in codebook
+```
+Similar to the previous graphs from line 288, these are a detailed breakdown trip types taken by households with 2-4 vehicles. The "WHYTO" is the "Trip Destination Purpose," denoting the destination for each trip. 
+
+Legend:
+01 Home
+02 Work from Home
+03 Work
+04 Work-related meeting/trip
+05 Volunteer Activites
+06 Drop off/Pick up someone
+07 Change type of transportation
+08 Attend school as student
+11 Buy goods (groceries, clothes, gas, etc.)
+...
+97 Something else
+
+More about this variable can be found in the codebook.
+
+## Running the Kolmogorov-Smirnov Statistical Test on Trip Type Distributions
+The graphs above demonstrate very interesting differences in driving patterns between different household vehicle counts. I will be running the Komogorov-Smirnov Statistical Test (KStest) to see if the differences in the trip type distributions between household vehicle counts are statistically significant. 
+
+The KStest tests two distributions and compares them against each other to produce a p-value, indicating whether the distributions are drawn from the same set of data. The null hypothesis is that the distributions are similar and come from the same data samples. 
+
+```{r producing a matrix of KStest p-value}
+trips_1car$WHYTRP1S <- as.numeric(trips_1car$WHYTRP1S)
+trips_2car$WHYTRP1S <- as.numeric(trips_2car$WHYTRP1S)
+trips_3car$WHYTRP1S <- as.numeric(trips_3car$WHYTRP1S)
+trips_4car$WHYTRP1S <- as.numeric(trips_4car$WHYTRP1S)
+
+  ks.test(trips_1car$WHYTRP1S, trips_2car$WHYTRP1S, alternative = c("two.sided"), exact = NULL, tol=1e-8, simulate.p.value=FALSE, B=2000)
+  ks.test(trips_2car$WHYTRP1S, trips_3car$WHYTRP1S, alternative = c("two.sided"), exact = NULL, tol=1e-8, simulate.p.value=FALSE, B=2000) 
+  ks.test(trips_3car$WHYTRP1S, trips_4car$WHYTRP1S, alternative = c("two.sided"), exact = NULL, tol=1e-8, simulate.p.value=FALSE, B=2000) 
+  ks.test(trips_2car$WHYTRP1S, trips_4car$WHYTRP1S, alternative = c("two.sided"), exact = NULL, tol=1e-8, simulate.p.value=FALSE, B=2000)
+  ks.test(trips_3car$WHYTRP1S, trips_1car$WHYTRP1S, alternative = c("two.sided"), exact = NULL, tol=1e-8, simulate.p.value=FALSE, B=2000) 
+  ks.test(trips_4car$WHYTRP1S, trips_1car$WHYTRP1S, alternative = c("two.sided"), exact = NULL, tol=1e-8, simulate.p.value=FALSE, B=2000) 
+  
+one_Car <- c(-1, 0.05394, 0.02607, 0.0399)
+two_Car <- c(0.05394, -1, 0.3052, 0.5747)
+three_Car <- c(0.02607, 0.3052, -1, 0.9997)
+four_Car <- c(0.0399, 0.5747, 0.9997, -1)
+
+#create matrix from vectors [FIX HERE to display a dictionary]
+KS_Matrix <- rbind(one_Car, two_Car, three_Car, four_Car)
+colnames(covar_Matrix) <- c("one_Car", "two_Car", "three_Car", "four_Car")
+```
+
+
+``` {r Suburban 2 Person vehicle age distribution}
+#filter out unknown ages
+veh <- veh %>% group_by(HOUSEID) %>% filter(!VEHAGE %in% "97")
+
+# sort most driven car per HOUSEID 
+veh <- veh %>% arrange(HOUSEID, -BESTMILE) 
+
+# assigning ranks of most driven to least driven vehicles
+veh <- veh %>%
+  group_by(HOUSEID) %>% mutate(RANK = row_number())
+
+# group vehicles by HHVEHCNT 
+veh_2car <- veh %>% filter(HHVEHCNT == 2)
+veh_3car <- veh %>% filter(HHVEHCNT == 3)
+veh_4car <- veh %>% filter(HHVEHCNT == 4)
+
+ggplot(data = veh_3car %>% mutate(RANK = as.factor(RANK))) +
+  geom_density(mapping = aes(x = VEHAGE, group = RANK, fill = RANK), n = 5000, alpha = 0.5, position = "identity") + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "Vehicle Age Distribution", subtitle = "3 Car 2 Person Suburban Household", x = "Age", y = "Count", fill = "Vehicle Used(Most to Least)" )
+
+ggplot(data = veh_4car %>% mutate(RANK = as.factor(RANK))) +
+  geom_density(mapping = aes(x = VEHAGE, group = RANK, fill = RANK), n = 5000, alpha = 0.5, position = "identity") + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "Vehicle Age Distribution", subtitle = "4 Car 2 Person Suburban Household", x = "Age", y = "Count", fill = "Vehicle Used(Most to Least)" )
+
+# investigate >40 car household that drives old vintage car as main car --> just pull out households and take a look at travel diary
+```
+
+```{r BESTMILE of last car by age}
+# making sure both cars have a car age
+veh_2car <- veh_2car %>% group_by(HOUSEID) %>% mutate(NOBS = n()) 
+veh_2car <- veh_2car %>% filter(NOBS == 2)
+
+# grouping households by 2nd car age
+veh_2car <- veh_2car %>% group_by(HOUSEID) %>% 
+  mutate(AGE = ifelse(VEHAGE[2] <= 10, "0-15", "N/A")) %>%
+  mutate(AGE = ifelse(VEHAGE[2] > 10 && VEHAGE[2] <= 20, "11-20", AGE)) %>%
+  mutate(AGE = ifelse(VEHAGE[2] > 20, "20+", AGE))
+
+# mean and group standard deviation
+means <- veh_2car %>% filter(RANK == 2) %>% group_by(AGE) %>% summarize(
+mn = mean(BESTMILE),
+stddev = sd(BESTMILE),
+smpsz = n(),
+stderr = sd(BESTMILE)/sqrt(smpsz)
+)
+
+ggplot(data = means, aes(x=AGE, y= mn)) + # unsure why stderr bars are not showing up, better way to represent this info?
+  geom_point() + 
+  geom_errorbar(aes(ymin= mn - stderr, ymax= mn + stderr)) +
+#  ylim(0, 15000) +
+  labs(title = "Annual Mileage Driven on 2nd Vehicle by Age", subtitle = "2 Cars Standard 2 Person Suburban Household", x = "Age", y = "Annual Mileage per Vehicle")
+
+# making sure all 3 cars have a car age
+veh_3car <- veh_3car %>% group_by(HOUSEID) %>% mutate(NOBS = n()) 
+veh_3car <- veh_3car %>% filter(NOBS == 3)
+
+# grouping households by 3rd car age
+veh_3car <- veh_3car %>% group_by(HOUSEID) %>% 
+  mutate(AGE = ifelse(VEHAGE[3] <= 15, "0-15", "N/A")) %>%
+  mutate(AGE = ifelse(VEHAGE[3] > 15 && VEHAGE[3] <= 30, "16-30", AGE)) %>%
+  mutate(AGE = ifelse(VEHAGE[3] > 30, "30+", AGE))
+
+# mean and group standard deviation
+means <- veh_3car %>% filter(RANK == 3) %>% group_by(AGE) %>% summarize(
+mn = mean(BESTMILE),
+stddev = sd(BESTMILE),
+smpsz = n(),
+stderr = sd(BESTMILE)/sqrt(smpsz)
+)
+
+ggplot(data = means, aes(x=AGE, y= mn)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymin= mn - stderr, ymax= mn + stderr)) +
+  labs(title = "Annual Non-Work Mileage Driven on 3rd Vehicle by Age", subtitle = "3 Cars Standard 2 Person Suburban Household", x = "Age", y = "Annual Mileage per Vehicle")
+
+# making sure all 4 cars have a car age
+veh_4car <- veh_4car %>% group_by(HOUSEID) %>% mutate(NOBS = n()) 
+veh_4car <- veh_4car %>% filter(NOBS == 4)
+
+# grouping households by 4th car age >10
+veh_4car <- veh_4car %>% group_by(HOUSEID) %>% 
+  mutate(AGE = ifelse(VEHAGE[4] <= 15, "0-15", "N/A")) %>%
+  mutate(AGE = ifelse(VEHAGE[4] > 15 && VEHAGE[4] <= 30, "16-30", AGE)) %>%
+  mutate(AGE = ifelse(VEHAGE[4] > 30, "30+", AGE))
+
+# mean and group standard deviation
+means <- veh_4car %>% filter(RANK == 4) %>% group_by(AGE) %>% summarize(
+mn = mean(BESTMILE),
+stddev = sd(BESTMILE),
+smpsz = n(),
+stderr = sd(BESTMILE)/sqrt(smpsz)
+)
+
+ggplot(data = means, aes(x=AGE, y= mn)) + # unsure why stderr bars are not showing up, better way to represent this info?
+  geom_point() + 
+  geom_errorbar(aes(ymin= (mn - stderr), ymax= (mn + stderr))) +
+#  ylim(0, 15000) +
+  labs(title = "Annual Non-Work Mileage Driven on 4th Vehicle by Age", subtitle = "4 Car Standard 2 Person Suburban Household", x = "Age", y = "Annual Mileage per Vehicle")
+
+# combine 30+ column with 20-30
+# combine into one figure and color code graph, change bin width (4 --> 3 bins have more precision)
+```
+
+
+``` {r variable mileage per person grouped by car type + age}
+# filter out unknown car types
+veh <- veh %>% filter(!VEHTYPE %in% "97")
+
+# narrow down into HHVEHCNT 
+veh_3car <- veh %>% filter(HHVEHCNT == 3)
+veh_4car <- veh %>% filter(HHVEHCNT == 4)
+
+# all 3 cars have a car type
+veh_3car <- veh_3car %>% group_by(HOUSEID) %>% mutate(NOBS = n()) 
+veh_3car <- veh_3car %>% filter(NOBS == 3)
+
+# grouping households by same third car type vs different third car type
+veh_3car <- veh_3car %>% group_by(HOUSEID) %>% 
+  mutate(TYPE = ifelse(VEHTYPE[3] == VEHTYPE[1] || VEHTYPE[3] == VEHTYPE[2], "Same 3rd Car", "Different 3rd Car"))
+
+# grouping households by third car age
+veh_3car <- veh_3car %>% group_by(HOUSEID) %>% 
+  mutate(AGE = ifelse(VEHAGE[3] <= 15, "0-15", "16+"))
+
+# grouping households by both 3rd car type + age
+veh_3car <- veh_3car %>% group_by(HOUSEID) %>% 
+  mutate(GROUP = ifelse(TYPE == "Same 3rd Car" && AGE == "0-15", 1, -1)) %>%
+  mutate(GROUP = ifelse(TYPE == "Different 3rd Car" && AGE == "0-15", 2, GROUP)) %>%
+  mutate(GROUP = ifelse(TYPE == "Same 3rd Car" && AGE == "16+", 3, GROUP)) %>%
+  mutate(GROUP = ifelse(TYPE == "Different 3rd Car" && AGE == "16+", 4, GROUP))
+
+# summarize mean and error bar for BESTMILE by GROUP
+means <- veh_3car %>% filter(RANK == 3) %>% group_by(GROUP) %>% summarize(
+  mn = mean(BESTMILE),
+  stddev = sd(BESTMILE),
+  smpsz = n(),
+  stderr = sd(BESTMILE)/sqrt(smpsz)
+  )
+
+ggplot(data = means, aes(x=GROUP, y= mn)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin= mn - stderr, ymax= mn + stderr)) +
+  labs(title = "Annual Mileage Driven on 3rd Car by Age and Type", subtitle = "3 Car 2 Person Suburban Household", x = "Car Type and Age", y = "Annual Mileage")
+
+# all 4 cars have a car type
+veh_4car <- veh_4car %>% group_by(HOUSEID) %>% mutate(NOBS = n()) 
+veh_4car <- veh_4car %>% filter(NOBS == 4)
+
+# grouping households by fourth car different than Car 1 and 2
+veh_4car <- veh_4car %>% group_by(HOUSEID) %>% 
+  # both Car3 and Car4 are same as Car1 and Car2
+  mutate(COMBO = paste0(VEHTYPE[1], "-", VEHTYPE[2], "-", VEHTYPE[3], "-", VEHTYPE[4])) %>%
+  mutate(TYPE = ifelse(VEHTYPE[4] != VEHTYPE[1] && VEHTYPE[4] != VEHTYPE[2], "Different 4th Car", "Same 4th Car")) # check against car 3 for robustness
+
+# grouping households by third car age
+veh_4car <- veh_4car %>% group_by(HOUSEID) %>% 
+  mutate(AGE = ifelse(VEHAGE[4] <= 15, "0-15", "16+"))
+
+# grouping households by both 3rd car type + age
+veh_4car <- veh_4car %>% group_by(HOUSEID) %>% 
+  mutate(GROUP = ifelse(TYPE == "Same 4th Car" && AGE == "0-15", 1, -1)) %>%
+  mutate(GROUP = ifelse(TYPE == "Different 4th Car" && AGE == "0-15", 2, GROUP)) %>%
+  mutate(GROUP = ifelse(TYPE == "Same 4th Car" && AGE == "16+", 3, GROUP)) %>%
+  mutate(GROUP = ifelse(TYPE == "Different 4th Car" && AGE == "16+", 4, GROUP))
+
+# summarize BESTMILE and GROUP mean and group standard deviation
+means <- veh_4car %>% filter(RANK == 4) %>% group_by(GROUP) %>% summarize(
+  mn = mean(BESTMILE),
+  stddev = sd(BESTMILE),
+  smpsz = n(),
+  stderr = sd(BESTMILE)/sqrt(smpsz)
+  )
+
+ggplot(data = means, aes(x=GROUP, y= mn)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin= mn - stderr, ymax= mn + stderr)) +
+  labs(title = "Annual Mileage Driven on 4th Car by Age and Type", subtitle = "4 Car 2 Person Suburban Household", x = "Car Type and Age", y = "Annual Mileage")
+
+cat("1: Same Car Type, 0-15\n2: Diff Car Type, 0-15\n3: Same Car Type, 16\n4: Diff Car Type, 16+")
+```
+
+```{r cars types grouped by rank}
+#filter out unknown car types
+veh <- veh %>% filter(!VEHTYPE %in% "97")
+
+# narrow down into HHVEHCNT 
+veh_1car <- veh %>% filter(HHVEHCNT == 1)
+veh_2car <- veh %>% filter(HHVEHCNT == 2)
+veh_3car <- veh %>% filter(HHVEHCNT == 3)
+veh_4car <- veh %>% filter(HHVEHCNT == 4)
+
+ggplot(data = veh_1car) +
+  geom_bar(mapping = aes(x = VEHTYPE)) + 
+  labs(title = "Most Driven to Least Driven Cars by Vehicle Type", subtitle = "1 Car Household", x = "Vehicle Types", y = "Proportion" )
+
+ggplot(data = veh_2car) +
+  geom_bar(mapping = aes(x = VEHTYPE, group = RANK, y = stat(prop), fill = as.factor(RANK)), position = 'dodge') + 
+    theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "Most Driven to Least Driven Cars by Vehicle Type", subtitle = "2 Car 2 Person Suburban Household", x = "Vehicle Types", y = "Proportion", fill = "Vehicle Used(Most to Least)" )
+
+ggplot(data = veh_3car) +
+  geom_bar(mapping = aes(x = VEHTYPE, group = RANK, y = stat(prop), fill = as.factor(RANK)), position = 'dodge') + 
+    theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "Most Driven to Least Driven Cars by Vehicle Type", subtitle = "3 Car 2 Person Suburban Household", x = "Vehicle Types", y = "Proportion", fill = "Vehicle Used(Most to Least)" )
+
+ggplot(data = veh_4car) +
+  geom_bar(mapping = aes(x = VEHTYPE, group = RANK, y = stat(prop), fill = as.factor(RANK)), position = 'dodge') + 
+  theme_bw() + 
+  scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "Most Driven to Least Driven Cars by Vehicle Type", subtitle = "4 Car 2 Person Suburban Household", x = "Vehicle Types", y = "Proportion", fill = "Vehicle Used(Most to Least)")
+```
+
+### Urban 2 Person Households
+We will compare the driving patterns of drivers in urban areas. The variables that are being controlled are household income range 50k-149k, lifecycle (2+ adults, no children), urban regions, both work only 1 full time job, not in school. Here, we will see how households with 1, 2, 3, and 4 cars use their cars differently. 
+
+```{r}
+#filter for 2 person households
+hh_2per <- hh_raw %>% filter(HHSIZE == 2)
+
+# only households in Lifecycle w/ 2 working adults and no kids
+hh_2per <- hh_2per %>% filter(LIF_CYC %in% "02")
+hh_2per <- hh_2per %>% filter(WRKCOUNT %in% "2")
+
+#keep only urban population density
+hh_2per <- hh_2per %>% filter(HTPPOPDN %in% c("7000", "17000", "30000")) 
+
+#income range of 50k-149.999k
+hh_2per <- hh_2per %>% filter(HHFAMINC %in% c("06", "07", "08", "09"))
+hhid_2per <- unique(hh_2per$HOUSEID)
+
+# both ppl. in household work only 1 full-time job
+per2 <- per_raw %>% filter(HOUSEID %in% hhid_2per)
+per2 <- per2 %>% filter(GT1JBLWK %in% "2") %>% filter(WKFTPT %in% "1")
+
+# both ppl do not attend school
+per2 <- per2 %>% filter(SCHTYP %in% c("-1", "03"))
+
+# both ppl. can drive
+per2 <- per2 %>% filter(DRIVER %in% "1")
+
+# own between 1-4 cars
+per2 <- per2 %>% filter(HHVEHCNT < 5) %>% filter(HHVEHCNT > 0)
+
+per2 <- per2 %>% group_by(HOUSEID) %>% mutate(NOBS = n()) 
+per2 <- per2 %>% filter(NOBS == 2)
+hhid_2per <- unique(per2$HOUSEID)
+```
+
+```{r removing work distance }
+# filter out unknown annual mileage
+per2 <- per2 %>% filter(!YEARMILE %in% c("-88", "-77", "-1"))
+
+# screen for driving to work/ mode to transport for work
+
+# filter out unknown distance to work
+per2 <- per2 %>% filter(!DISTTOWK17 %in% "-9")
+hhid_2per <- unique(per2$HOUSEID)
+
+# filter out unknown mode to work 
+per2 <- per2 %>% filter(!WRKTRANS %in% c("-9", "-8", "-7", "-1"))
+
+# calculating annual miles driven to/from work (distanceToWork*2 To/From*5 days/week*46.8 weeks); set all people who do not drive to work as WORKMILE = 0
+per2 <- per2 %>%
+  mutate(WORKMILE = ifelse(!WRKTRANS %in% c("3","4","5","6","18"), 0.0, DISTTOWK17*2.0*5*46.8)) 
+# average work day is probably less than 5 days a week
+# work from home one or two days per week: national average of days going in to work per week
+# over counting trips
+# filter out work from home??
+
+# calculating variable miles 
+per2 <- per2 %>% mutate(VARMILE = YEARMILE - WORKMILE)
+ 
+per2 <- per2 %>% 
+  mutate(VARMILE1 = Winsorize(VARMILE, minval = 0, maxval = 100000))
+ 
+ # fraction of observations are negative
+print("Fraction of Negative Variable Mileage")
+length(which(per2$VARMILE < 0)) / nrow(per2)
+```
+
+```{r variable annual miles boxplot}
+# filter households with 0 < # cars < 5
+per2 <- per2 %>% filter(HHVEHCNT < 5) %>% filter(HHVEHCNT > 0)
+  
+# boxplot of annual mileage per driver
+ggplot(data = per2, mapping = aes(x = HHVEHCNT, group = HHVEHCNT, y = VARMILE)) + 
+  geom_boxplot() + 
+  coord_flip() + 
+  labs(title = "Variable Annual Mileage Per Driver", subtitle = "Includes Negative Mileage", x = "Annual Mileage", y = "Household Vehicle Count")
+
+# boxplot w/out outliers
+ggplot(data = per2, mapping = aes(x = HHVEHCNT, group = HHVEHCNT, y = VARMILE1)) + 
+  geom_boxplot() + 
+  labs(title = "Variable Annual Mileage Per Driver", subtitle = "Scaled", x = "Household Vehicle Count", y = "Annual Mileage")
+```
+
+```{r variable mileage graph of mean and error bar}
+# mean and group standard deviation
+means <- per2 %>% group_by(HHVEHCNT) %>% summarize(
+  mn = mean(VARMILE),
+  stddev = sd(VARMILE),
+  smpsz = sqrt(table(HHVEHCNT)),
+  stderr = sd(VARMILE)/sqrt(table(HHVEHCNT))
+  )
+
+# windsorized mean and group standard deviation
+means1 <- per2 %>% group_by(HHVEHCNT) %>% summarize(
+  mn = mean(VARMILE1),
+  stddev = sd(VARMILE1),
+  smpsz = sqrt(table(HHVEHCNT)),
+  stderr = sd(VARMILE1)/sqrt(table(HHVEHCNT))
+  )
+
+ggplot(data = means, aes(x=HHVEHCNT, y=mn)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin= mn - stderr, ymax= mn + stderr)) +
+   labs(title = "Mean Variable Annual Mileage Per Driver", subtitle = "Mean and Error Bar", x = "Household Vehicle Count", y = "Annual Mileage")
+
+ggplot(data = means1, aes(x=HHVEHCNT, y= mn)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin= mn - stderr, ymax= mn + stderr)) +
+   labs(title = "Mean Variable Annual Mileage Per Driver", subtitle = "Standard 2 Person Urban Household", x = "Household Vehicle Count", y = "Annual Mileage")
+```
+
+```{r graph of how cars from most used to least by annual mileage}
+# vehicles in 2 person households
+veh <- veh_raw %>% filter(HOUSEID %in% hhid_2per) 
+
+# keep households with between 1-4 cars
+veh <- veh %>% filter(HHVEHCNT < 5) %>% filter(HHVEHCNT > 0)
+
+# filter out unknown bestMile responses
+veh <- veh %>% filter(!BESTMILE %in% "-9")
+
+# sort most driven car per HOUSEID 
+veh <- veh %>% arrange(HOUSEID, -BESTMILE) 
+
+# assigning ranks of most driven to least driven vehicles
+veh <- veh %>%
+  group_by(HOUSEID) %>% mutate(RANK = row_number())
+
+# calculating mean for each group (sorted by HHVEHCNT then RANK)
+veh <- veh %>% group_by(HHVEHCNT, RANK) %>% mutate(me = mean(BESTMILE))
+
+ggplot(data = veh) +
+  geom_bar(mapping = aes(x = RANK, group = HHVEHCNT, fill = as.factor(HHVEHCNT), y = me), stat = "identity", position="dodge") +
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "Annual Mileage Per Vehicle", group = "Household Vehicle Count", x = "Vehicles Being Driven (Most to Least)", y = "Mileage", fill = "Household Vehicle Count")
+
+```
+
+``` {r types of trips being made by different HHVEHCNT households on their cars}
+
+# trips made by 2 person households
+trips <- trips_raw %>% filter(HOUSEID %in% hhid_2per) 
+
+# filter out unknown trips types and trips returning home
+trips <- trips %>% filter(!WHYTO %in% c("-7", "01", "02", "97"))
+trips <- trips %>% filter(!WHYTRP1S %in% c("97", "01"))
+
+# how to associate rank with trip type data? 
+trips <- trips %>% left_join(veh, by = c("HOUSEID", "VEHID"))
+trips <- trips %>% filter(!is.na(RANK))
+
+# narrow down into HHVEHCNT 
+trips_1car <- trips %>% filter(HHVEHCNT.x == 1)
+trips_2car <- trips %>% filter(HHVEHCNT.x == 2)
+trips_3car <- trips %>% filter(HHVEHCNT.x == 3)
+trips_4car <- trips %>% filter(HHVEHCNT.x == 4)
+
+# group by car rank: WHYTRP1S
+ggplot(data = trips_1car) +
+  geom_bar(mapping = aes(x = WHYTRP1S)) + 
+  scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "1 Car Household Trip Types", subtitle = "Summary", x = "Trip Purpose", y = "Count" )
+
+ggplot(data = trips_2car) +
+  geom_bar(mapping = aes(x = WHYTRP1S, group = RANK, fill = as.factor(RANK)), position = "dodge") + 
+    theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "2 Car Household Trip Types", subtitle = "Summary", x = "Trip Purpose", y = "Count", fill = "Vehicle Used(Most to Least)")
+
+ggplot(data = trips_3car) +
+  geom_bar(mapping = aes(x = WHYTRP1S, group = RANK, fill = as.factor(RANK)), position = "dodge") + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "3 Car Household Trip Types", subtitle = "Summary", x = "Trip Purpose", y = "Count", fill = "Vehicle Used(Most to Least)" )
+
+ggplot(data = trips_4car) +
+  geom_bar(mapping = aes(x = WHYTRP1S, group = RANK, fill = as.factor(RANK)), position = 'dodge') + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "4 Car Household Trip Types", subtitle = "Summary", x = "Trip Purpose", y = "Count", fill = "Vehicle Used(Most to Least)" )
+
+# group by car rank: WHYTO
+ggplot(data = trips_1car) +
+  geom_bar(mapping = aes(x = WHYTO, y =stat(prop), group = 1)) + 
+  scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "1 Car Household Trip Types", x = "Trip Purpose", y = "Count" )
+
+ggplot(data = trips_2car) +
+  geom_bar(mapping = aes(x = WHYTO, y = stat(prop), group = RANK, fill = as.factor(RANK)), position = "dodge") + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "2 Car Household Trip Types", subtitle = "Urban 2 Person Household", x = "Trip Purpose", y = "Count", fill = "Vehicle Used(Most to Least)" )
+
+ggplot(data = trips_3car) +
+  geom_bar(mapping = aes(x = WHYTO, y = stat(prop), group = RANK, fill = as.factor(RANK)), position = "dodge") + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "3 Car Household Trip Types", subtitle = "Urban 2 Person Household", x = "Trip Purpose", y = "Count", fill = "Vehicle Used(Most to Least)" )
+
+ggplot(data = trips_4car) +
+  geom_bar(mapping = aes(x = WHYTO, y = stat(prop), group = RANK, fill = as.factor(RANK)), position = 'dodge') + 
+  theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "4 Car Household Trip Types", subtitle = "Urban 2 Person Household", x = "Trip Purpose", y = "Count", fill = "Vehicle Used(Most to Least)" )
+```
+
+```{r cars types distribution grouped by rank}
+#filter out unknown car types
+veh <- veh %>% filter(!VEHTYPE %in% "97")
+
+# narrow down into HHVEHCNT 
+veh_1car <- veh %>% filter(HHVEHCNT == 1)
+veh_2car <- veh %>% filter(HHVEHCNT == 2)
+veh_3car <- veh %>% filter(HHVEHCNT == 3)
+veh_4car <- veh %>% filter(HHVEHCNT == 4)
+
+ggplot(data = veh_1car) +
+  geom_bar(mapping = aes(x = VEHTYPE)) + 
+  labs(title = "Most Driven to Least Driven Cars by Vehicle Type", subtitle = "1 Car Household", x = "Vehicle Types", y = "Proportion" )
+
+ggplot(data = veh_2car) +
+  geom_bar(mapping = aes(x = VEHTYPE, group = RANK, y = stat(prop), fill = as.factor(RANK)), position = 'dodge') + 
+    theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "Most Driven to Least Driven Cars by Vehicle Type", subtitle = "2 Car 2 Person Urban Household", x = "Vehicle Types", y = "Proportion", fill = "Vehicle Used(Most to Least)" )
+
+ggplot(data = veh_3car) +
+  geom_bar(mapping = aes(x = VEHTYPE, group = RANK, y = stat(prop), fill = as.factor(RANK)), position = 'dodge') + 
+    theme_bw() + scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "Most Driven to Least Driven Cars by Vehicle Type", subtitle = "3 Car 2 Person Urban Household", x = "Vehicle Types", y = "Proportion", fill = "Vehicle Used(Most to Least)" )
+
+ggplot(data = veh_4car) +
+  geom_bar(mapping = aes(x = VEHTYPE, group = RANK, y = stat(prop), fill = as.factor(RANK)), position = 'dodge') + 
+  theme_bw() + 
+  scale_fill_manual(values=wes_palette("Darjeeling2")) +
+  labs(title = "Most Driven to Least Driven Cars by Vehicle Type", subtitle = "4 Car 2 Person Urban Household", x = "Vehicle Types", y = "Proportion", fill = "Vehicle Used(Most to Least)")
+```
