@@ -20,7 +20,7 @@ I coded this in python. This algorithm explored implementing data-analysis algor
 3. Type `python cluster --view` into terminal and enter to run algorithm.
 4. A window should appear with an option for you select sample datasets to run algorithm on, a step botton to move each step of the algorith, adjust amount of clusters, etc.
 
-## Analyzing Amazon Reviews Data Science Project
+## Analyzing Amazon Reviews
 
 **Overview**
 
@@ -30,7 +30,7 @@ This was a semester long data science research project I did with a partner. We 
 
 I coded this in python is Jupyter Notebook. I applied data science skills such as Data Cleaning/Wrangling, Text Sentiment Analysis, Multinomial Logistic Regression, Linear Regression, Komogorov-Smirnov Test, Bootstrapping and Permutation Statistics.
 
-## Python Alien Invaders Shooting Game
+## Alien Invaders Shooting Game
 
 **Overview**
 
@@ -49,7 +49,7 @@ I coded this in python. This game explored GUI applications, subclasses and inhe
 5. The game should appear in a window. Press 'left' and 'right' keys to move the ship. Press 'up' to shoot your bolts. You have three lives to kill all the aliens.
 
 
-## Negative Rebound: National Household Travel Survey Environmental Economics Data Science Research
+## Negative Rebound: National Household Travel Survey Environmental Economics Research
 
 **Overview**
 
