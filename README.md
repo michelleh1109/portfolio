@@ -3,7 +3,36 @@ I am an undergraduate student at Cornell University studying Information Science
 
 My portfolio belows includes independent coding projects, environmental economics research, and additional data science projects. Below is a brief overview of a few key projects I have uploaded to my GitHub.
 
-## Analyzing Amazon Reviews Data Science Project
+## Python Alien Invaders Shooting Game
+
+**Overview**
+
+The Alien Invaders Shooting game is a fun and simple game. This player can navigates a spaceship left and right to shoot invading aliens. The invading aliens will progessively move closer to the player while also shooting back at you. The player has three lives to kill all the aliens.
+
+**Skills Applied**
+I coded this in python. This game explored GUI applications, subclasses and inheritance, coroutines for animations, and generators. 
+
+**How to Run and Play**
+1. Download `alien_invaders` folder.
+2. Open terminal and navigate working directory to *just outside* of `alien_invaders` folder.
+3. To run the game, type `python alien_invaders` and enter.
+4. To adjust the difficulty and speed of the game type `python alien_invaders [alien rows] [alien columns] [alien shooting speed]`. For example, `python alien_invaders 2 3 0.5`.
+5. The game should appear in a window. Press 'left' and 'right' keys to move the ship. Press 'up' to shoot your bolts. You have three lives to kill all the aliens.
+
+## Python K-Means Clustering Algorithm
+
+**Overview**
+
+K-Means Clustering is a form of unsupervised learning that aims to partition n observations into k clusters in which each observation belongs to the cluster with the nearest mean. This allows us to take real-world data to identify relevant groups we might not be able to identify indepently. While K-Means clustering is commonly used in data science to process big data, here I explore the fundamentals of the algorithm and actually program out the details myself.
+
+**Skills Applied**
+I coded this in python. This algorithm explored implementing data-analysis algorithm on real-data, working with multidimensional data, object-oriented design, classes and subclasses, and inheritance.
+
+**How to Run**
+1. Download `kmeans_clustering` Folder
+2. Open terminal and navigate working directory to *just outside* of `kmeans_clustering` folder.
+3. Type `python cluster --view` into terminal and enter to run algorithm.
+4. A window should appear with an option for you select sample datasets to run algorithm on, a step botton to move each step of the algorith, adjust amount of clusters, etc.## Analyzing Amazon Reviews Data Science Project
 
 **Overview**
 
@@ -24,34 +53,3 @@ The specific goal of this empirical data analyses is to prove that decreasing th
 **Skills Applied**
 
 I coded this in R (programming language) in R Studio. I applied data science skills such as data wrangling, building visualizations, working with large data sets, and statistical tests.
-
-## Python Alien Invaders Shooting Game
-
-**Overview**
-
-The Alien Invaders Shooting game is a fun and simple game. This player can navigates a spaceship left and right to shoot invading aliens. The invading aliens will progessively move closer to the player while also shooting back at you. The player has three lives to kill all the aliens.
-
-**Skills Applied**
-I coded this in python. This game explored GUI applications, subclasses and inheritance, coroutines for animations, and generators. 
-
-**How to Run and Play**
-1. Download `alien_invaders` folder.
-2. Open terminal and navigate working directory to *just outside* of `alien_invaders` folder.
-3. To run the game, type `python alien_invaders` and enter.
-4. To adjust the difficulty and speed of the game type 'python alien_invaders [alien rows] [alien columns] [alien shooting speed]'. For example, 'python alien_invaders 2 3 0.5'.
-5. The game should appear in a window. Press 'left' and 'right' keys to move the ship. Press 'up' to shoot your bolts. You have three lives to kill all the aliens.
-
-## Python K-Means Clustering Algorithm
-
-**Overview**
-
-K-Means Clustering is a form of unsupervised learning that aims to partition n observations into k clusters in which each observation belongs to the cluster with the nearest mean. This allows us to take real-world data to identify relevant groups we might not be able to identify indepently. While K-Means clustering is commonly used in data science to process big data, here I explore the fundamentals of the algorithm and actually program out the details myself.
-
-**Skills Applied**
-I coded this in python. This algorithm explored implementing data-analysis algorithm on real-data, working with multidimensional data, object-oriented design, classes and subclasses, and inheritance.
-
-**How to Run**
-1. Download `kmeans_clustering` Folder
-2. Open terminal and navigate working directory to *just outside* of `kmeans_clustering` folder.
-3. Type `python cluster --view` into terminal and enter to run algorithm.
-4. A window should appear with an option for you select sample datasets to run algorithm on, a step botton to move each step of the algorith, adjust amount of clusters, etc.
