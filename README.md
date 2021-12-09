@@ -10,6 +10,7 @@ My portfolio belows includes independent coding projects, environmental economic
 This was a semester long data science research project I did with a partner. We investigated trends in Amazon Reviews with data such as review body, title, product being reviewed, verified purchase status, star rating etc. Our overall goal was to see if greater market/industry trends can be extrapolated from Amazon reviews. For example, if a brand is doing really well on Amazon, are they also doing very well in the industry?
 
 **Skills Applied**
+
 I coded this in python is Jupyter Notebook. I applied data science skills such as Data Cleaning/Wrangling, Text Sentiment Analysis, Multinomial Logistic Regression, Linear Regression, Komogorov-Smirnov Test, Bootstrapping and Permutation Statistics.
 
 ## Negative Rebound: National Household Travel Survey Environmental Economics Data Science Research
@@ -28,6 +29,8 @@ I coded this in R (programming language) in R Studio. I applied data science ski
 
 **Overview**
 
+The Alien Invaders Shooting game is a fun and simple game `hello`.
+
 **Skills Applied**
 
 **How to Play**
@@ -36,7 +39,10 @@ I coded this in R (programming language) in R Studio. I applied data science ski
 
 **Overview**
 
+K-Means Clustering is a form of unsupervised learning that aims to partition n observations into k clusters in which each observation belongs to the cluster with the nearest mean. This allows us to take real-world data to identify relevant groups we might not be able to identify indepently. Here, I programmed out the K-Means Clustering algorithm which can process and visualize csv files.
+
 **Skills Applied**
+
 
 **How to Run**
 
