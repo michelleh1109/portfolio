@@ -18,7 +18,9 @@ I coded this in python. This algorithm explored implementing data-analysis algor
 1. Download `kmeans_clustering` Folder
 2. Open terminal and navigate working directory to *just outside* of `kmeans_clustering` folder.
 3. Type `python cluster --view` into terminal and enter to run algorithm.
-4. A window should appear with an option for you select sample datasets to run algorithm on, a step botton to move each step of the algorith, adjust amount of clusters, etc.## Analyzing Amazon Reviews Data Science Project
+4. A window should appear with an option for you select sample datasets to run algorithm on, a step botton to move each step of the algorith, adjust amount of clusters, etc.
+
+## Analyzing Amazon Reviews Data Science Project
 
 **Overview**
 
